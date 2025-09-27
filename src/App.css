@@ -1,5 +1,105 @@
-body,html,#root { margin:0; padding:0; height:100%; }
-.self { border-radius:12px; background-color: #fddfba; padding: 8px; }
-.partner { border-radius:12px; background-color: #bae1ff; padding: 8px; }
-input { outline:none; }
-button { cursor:pointer; }
+body {
+  margin:0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+}
+
+.app-container {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  margin: auto;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+  overflow: hidden;
+  min-height: 100vh;
+  padding: 10px;
+}
+
+.chat-header {
+  background: #ff4500;
+  color: white;
+  padding: 10px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+}
+
+.chat-window {
+  flex:1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.chat-message {
+  max-width: 60%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  word-wrap: break-word;
+}
+
+.self {
+  background: #ffedd5;
+  align-self: flex-end;
+}
+
+.partner {
+  background: #dbeafe;
+  align-self: flex-start;
+}
+
+.chat-input {
+  display: flex;
+  gap: 6px;
+  padding: 10px 0;
+}
+
+.chat-input input {
+  flex:1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.chat-input button {
+  padding: 8px 12px;
+  border:none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #ff4500;
+  color: white;
+}
+
+.nickname-select {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  height:100vh;
+  gap:10px;
+}
+
+.nickname-select button {
+  padding:10px 20px;
+  font-size:16px;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+  background:#ff4500;
+  color:white;
+}
+
+.surprise {
+  background: #fef3c7;
+  padding: 8px;
+  margin: 5px 0;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: bold;
+}
