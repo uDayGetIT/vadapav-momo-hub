@@ -36,7 +36,9 @@ export default function App() {
   const [indiaTime, setIndiaTime] = useState('');
   const [dubaiTime, setDubaiTime] = useState('');
   const [micActive, setMicActive] = useState(false);
-  const [deleteRequest, setDeleteRequest] = useState([]);
+  const [deleteRequest, setDeleteRequest] = useState({});
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
   const chatRefDiv = useRef();
   const localStreamRef = useRef(null);
   const peerRef = useRef(null);
@@ -45,7 +47,7 @@ export default function App() {
   const ignoreNext = useRef(false);
   const surpriseCount = useRef(0);
 
-  // Load Firebase data
+  // Load chat & YouTube & emoji & delete request
   useEffect(()=>{
     const chatRefFirebase = ref(database, `rooms/${ROOM_ID}/chat`);
     onValue(chatRefFirebase, snapshot=>{
@@ -72,7 +74,6 @@ export default function App() {
     onValue(emojiRef, snapshot=>{
       const data = snapshot.val();
       if(data && data.emoji){
-        // Blast emoji everywhere
         const emojiArray = [];
         for(let i=0;i<50;i++){
           emojiArray.push({
@@ -109,7 +110,7 @@ export default function App() {
     const deleteRef = ref(database, `rooms/${ROOM_ID}/deleteRequest`);
     onValue(deleteRef, snapshot=>{
       const data = snapshot.val();
-      setDeleteRequest(data ? Object.values(data) : []);
+      setDeleteRequest(data || {});
       if(data && Object.values(data).filter(v=>v==='YES').length===2){
         remove(ref(database, `rooms/${ROOM_ID}/chat`));
         remove(ref(database, `rooms/${ROOM_ID}/deleteRequest`));
@@ -128,7 +129,7 @@ export default function App() {
     return ()=>clearInterval(timer);
   },[]);
 
-  // PeerJS setup
+  // PeerJS
   useEffect(()=>{
     const peer = new Peer();
     peerRef.current = peer;
@@ -146,7 +147,7 @@ export default function App() {
     });
   },[]);
 
-  // YouTube API
+  // YouTube
   useEffect(()=>{
     const tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
@@ -161,6 +162,12 @@ export default function App() {
       });
     };
   },[]);
+
+  useEffect(()=>{
+    if(playerRef.current && youtubeURL){
+      playerRef.current.loadVideoById(extractVideoID(youtubeURL));
+    }
+  },[youtubeURL]);
 
   const extractVideoID = url=>{
     const reg = /[?&]v=([^&#]+)/;
@@ -196,7 +203,9 @@ export default function App() {
     const surpriseMsg = {id:`surp-${Date.now()}`, from:'🎉Surprise', text:SURPRISES[next], ts:Date.now()};
     set(ref(database, `rooms/${ROOM_ID}/chat`), {message:surpriseMsg});
     surpriseCount.current++;
-    setTimeout(()=>setMessages(prev=>prev.filter(m=>m.id!==surpriseMsg.id)),3000);
+    setTimeout(()=>{
+      remove(ref(database, `rooms/${ROOM_ID}/chat`));
+    },3000);
   };
 
   const updateYoutubeURL = url=>{
@@ -221,8 +230,15 @@ export default function App() {
   };
 
   const requestDelete = ()=>{
-    set(ref(database, `rooms/${ROOM_ID}/deleteRequest/${nickname}`),'YES');
+    setShowDeleteModal(true);
   };
+
+  const confirmDelete = ()=>{
+    set(ref(database, `rooms/${ROOM_ID}/deleteRequest/${nickname}`),'YES');
+    setShowDeleteModal(false);
+  };
+
+  const cancelDelete = ()=>setShowDeleteModal(false);
 
   const handleEnterKey = e=>{
     if(e.key==='Enter') sendMessage(text);
@@ -258,26 +274,38 @@ export default function App() {
 
         <div className='chat-container'>
           <div className='chat-window' ref={chatRefDiv}>
-            {messages.map(m=>(
-              <div key={m.id} className={`chat-message ${m.from===nickname?'self':'partner'}`}>
-                <strong>{m.from}:</strong> {m.text}
+            {messages.map(m => (
+              <div key={m.id} className={`chat-message ${m.from === nickname ? 'self' : 'partner'}`}>
+                <strong>{m.from}</strong>
+                <span>{m.text}</span>
               </div>
             ))}
           </div>
-
           <div className='chat-input'>
-            <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={handleEnterKey} placeholder='Say something...' />
+            <input type='text' value={text} onChange={e=>setText(e.target.value)} onKeyDown={handleEnterKey} placeholder='Type message...' />
             <button onClick={()=>sendMessage(text)}>Send</button>
-            <select onChange={e=>sendEmoji(e.target.value)} defaultValue="">
-              <option value="" disabled>Emoji 🌟</option>
-              {EMOJIS.map(e=><option key={e} value={e}>{e}</option>)}
+            <button onMouseDown={handleMicDown} onMouseUp={handleMicUp} className={`mic-btn ${micActive?'active':''}`}>🎤</button>
+            <select onChange={e=>sendEmoji(e.target.value)}>
+              <option value=''>Emoji</option>
+              {EMOJIS.map(e=> <option key={e} value={e}>{e}</option>)}
             </select>
-            <button className={`mic-btn ${micActive?'active':''}`} onMouseDown={handleMicDown} onMouseUp={handleMicUp}>🎤 Hold to Talk</button>
           </div>
         </div>
       </div>
 
-      {emojiRain.map((e,i)=><div key={i} className='emoji-rain' style={{left:`${e.left}%`, transform:`rotate(${e.rotate}deg)`}}>{e.e}</div>)}
+      {emojiRain.map((e,i)=>(
+        <div key={i} className='emoji-rain' style={{left:`${e.left}%`,transform:`rotate(${e.rotate}deg)`}}>{e.e}</div>
+      ))}
+
+      {showDeleteModal && (
+        <div style={{position:'fixed',top:0,left:0,width:'100%',height:'100%',background:'rgba(0,0,0,0.5)',display:'flex',justifyContent:'center',alignItems:'center'}}>
+          <div style={{background:'#fff',padding:20,borderRadius:8}}>
+            <p>Do both of you want to delete all chat?</p>
+            <button onClick={confirmDelete}>YES</button>
+            <button onClick={cancelDelete}>NO</button>
+          </div>
+        </div>
+      )}
     </div>
-  );
+  )
 }
