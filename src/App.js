@@ -4,7 +4,6 @@ import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
 import Peer from 'peerjs';
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyC-5glYkkh9TQVt4Rh0cJA9LU68SvJqNSg",
   authDomain: "momo-mumbai.firebaseapp.com",
@@ -43,6 +42,8 @@ export default function App() {
   const localStreamRef = useRef(null);
   const peerRef = useRef(null);
   const callRef = useRef(null);
+  const playerRef = useRef(null);
+  const ignoreNext = useRef(false);
 
   // Firebase listeners
   useEffect(() => {
@@ -59,7 +60,12 @@ export default function App() {
     const youtubeRef = ref(database, `rooms/${ROOM_ID}/youtube`);
     onValue(youtubeRef, snapshot => {
       const data = snapshot.val();
-      if(data && data.url) setYoutubeURL(data.url);
+      if(data && data.url) {
+        setYoutubeURL(data.url);
+        if(playerRef.current){
+          playerRef.current.loadVideoById(extractVideoID(data.url));
+        }
+      }
     });
 
     const emojiRef = ref(database, `rooms/${ROOM_ID}/emoji`);
@@ -68,6 +74,29 @@ export default function App() {
       if(data && data.emoji) {
         setEmojiRain(prev => [...prev, data.emoji]);
         setTimeout(()=>setEmojiRain(prev=>prev.slice(1)),3000);
+      }
+    });
+
+    const ytActionRef = ref(database, `rooms/${ROOM_ID}/youtubeAction`);
+    onValue(ytActionRef, snapshot => {
+      const data = snapshot.val();
+      if(data && playerRef.current){
+        if(ignoreNext.current){
+          ignoreNext.current=false;
+          return;
+        }
+        switch(data.action){
+          case 'play':
+            playerRef.current.seekTo(data.time||0,true);
+            playerRef.current.playVideo();
+            break;
+          case 'pause':
+            playerRef.current.pauseVideo();
+            break;
+          case 'seek':
+            playerRef.current.seekTo(data.time||0,true);
+            break;
+        }
       }
     });
   }, []);
@@ -100,6 +129,40 @@ export default function App() {
       } catch(e){ console.warn('Mic access denied',e);}
     });
   },[]);
+
+  // YouTube IFrame API
+  useEffect(() => {
+    const tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.body.appendChild(tag);
+    window.onYouTubeIframeAPIReady = () => {
+      playerRef.current = new window.YT.Player('yt-player', {
+        height: '250',
+        width: '48%',
+        videoId: extractVideoID(youtubeURL),
+        events: { 'onStateChange': onPlayerStateChange }
+      });
+    };
+  }, []);
+
+  const extractVideoID = (url) => {
+    const reg = /[?&]v=([^&#]+)/;
+    const match = url.match(reg);
+    return match ? match[1] : url;
+  };
+
+  const onPlayerStateChange = (event) => {
+    if(!playerRef.current) return;
+    const state = event.data;
+    const currentTime = playerRef.current.getCurrentTime();
+    ignoreNext.current=true;
+
+    if(state === 1){
+      set(ref(database, `rooms/${ROOM_ID}/youtubeAction`), {action:'play', time:currentTime, ts:Date.now()});
+    } else if(state === 2){
+      set(ref(database, `rooms/${ROOM_ID}/youtubeAction`), {action:'pause', time:currentTime, ts:Date.now()});
+    }
+  };
 
   const sendMessage = msgText=>{
     if(!msgText.trim()) return;
@@ -186,7 +249,7 @@ export default function App() {
       </div>
 
       <div className='flex justify-around mt-2'>
-        {youtubeURL && <iframe width='48%' height='250' src={youtubeURL.replace("watch?v=","embed/")} frameBorder='0' allowFullScreen></iframe>}
+        <div id='yt-player'></div>
       </div>
 
       <div className='text-center flex flex-col gap-1'>
