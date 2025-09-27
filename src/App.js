@@ -4,7 +4,7 @@ import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
 import Peer from 'peerjs';
 
-// -------------------- CONFIG --------------------
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyC-5glYkkh9TQVt4Rh0cJA9LU68SvJqNSg",
   authDomain: "momo-mumbai.firebaseapp.com",
@@ -20,8 +20,7 @@ const database = getDatabase(app);
 
 const ROOM_ID = 'vadapav-momo-night';
 const NICKNAMES = ['ud0_0','CompetitiveExpert973'];
-
-const emojis = ['❤️','😂','🥟','🍔','🌧️','🏙️','🎶','✨'];
+const EMOJIS = ['❤️','😂','🥟','🍔','🌧️','🏙️','🎶','✨'];
 const SURPRISES = [
   'Vadapav + Momo = Best Combo ❤️',
   'Fireworks! From Mumbai rains to Dubai skies ✨',
@@ -36,16 +35,16 @@ export default function App() {
   const [clickCount, setClickCount] = useState(0);
   const [surprises, setSurprises] = useState([]);
   const [emojiRain, setEmojiRain] = useState([]);
-  const chatRefDiv = useRef();
+  const [youtubeURL, setYoutubeURL] = useState('');
   const [indiaTime, setIndiaTime] = useState('');
   const [dubaiTime, setDubaiTime] = useState('');
-  const [peerId, setPeerId] = useState('');
-  const [partnerPeerId, setPartnerPeerId] = useState('');
+  const [micActive, setMicActive] = useState(false);
+  const chatRefDiv = useRef();
   const localStreamRef = useRef(null);
-  const callRef = useRef(null);
   const peerRef = useRef(null);
+  const callRef = useRef(null);
 
-  // Firebase listener
+  // Firebase listeners
   useEffect(() => {
     const chatRefFirebase = ref(database, `rooms/${ROOM_ID}/chat`);
     onValue(chatRefFirebase, snapshot => {
@@ -54,6 +53,21 @@ export default function App() {
         const msg = data.message;
         setMessages(prev => prev.length && prev[prev.length-1].id===msg.id?prev:[...prev,msg]);
         chatRefDiv.current.scrollTop = chatRefDiv.current.scrollHeight;
+      }
+    });
+
+    const youtubeRef = ref(database, `rooms/${ROOM_ID}/youtube`);
+    onValue(youtubeRef, snapshot => {
+      const data = snapshot.val();
+      if(data && data.url) setYoutubeURL(data.url);
+    });
+
+    const emojiRef = ref(database, `rooms/${ROOM_ID}/emoji`);
+    onValue(emojiRef, snapshot => {
+      const data = snapshot.val();
+      if(data && data.emoji) {
+        setEmojiRain(prev => [...prev, data.emoji]);
+        setTimeout(()=>setEmojiRain(prev=>prev.slice(1)),3000);
       }
     });
   }, []);
@@ -69,63 +83,60 @@ export default function App() {
     return ()=>clearInterval(timer);
   },[]);
 
-  // PeerJS
-  useEffect(() => {
+  // PeerJS for push-to-talk
+  useEffect(()=>{
     const peer = new Peer();
     peerRef.current = peer;
-    peer.on('open', id => setPeerId(id));
     peer.on('call', async call => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
         localStreamRef.current = stream;
         call.answer(stream);
-        call.on('stream', remoteStream => {
+        call.on('stream', remoteStream=>{
           const audioEl = document.getElementById('remoteAudio');
           if(audioEl) audioEl.srcObject = remoteStream;
         });
         callRef.current = call;
-      } catch(e){
-        console.warn('Mic access denied', e);
-      }
+      } catch(e){ console.warn('Mic access denied',e);}
     });
-  }, []);
+  },[]);
 
-  const startCall = async () => {
-    if(!partnerPeerId) return alert('Enter partner Peer ID');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
-      localStreamRef.current = stream;
-      const call = peerRef.current.call(partnerPeerId, stream);
-      call.on('stream', remoteStream => {
-        const audioEl = document.getElementById('remoteAudio');
-        if(audioEl) audioEl.srcObject = remoteStream;
-      });
-      callRef.current = call;
-    } catch(e){
-      alert('Mic access required');
-    }
-  };
-
-  // Send chat message
-  const sendMessage = (msgText)=>{
+  const sendMessage = msgText=>{
     if(!msgText.trim()) return;
     const msgObj = {id:`${Date.now()}-${Math.random()}`, from:nickname, text:msgText, ts:Date.now()};
     set(ref(database, `rooms/${ROOM_ID}/chat`), {message:msgObj});
     setText('');
   };
 
-  // Emoji rain
-  const handleEmojiClick = (emoji)=>{
-    setText(prev=>prev+emoji);
-    setEmojiRain(prev=>[...prev,emoji]);
-    setTimeout(()=>setEmojiRain(prev=>prev.slice(1)),3000);
+  const sendEmoji = emoji=>{
+    set(ref(database, `rooms/${ROOM_ID}/emoji`), {emoji});
   };
 
-  // Surprises
-  const handleClickSurprise = ()=>{
+  const handleSurprise = ()=>{
     const next = clickCount % SURPRISES.length;
     setSurprises(prev=>[...prev,SURPRISES[next]]);
     setClickCount(prev=>prev+1);
+  };
+
+  const updateYoutubeURL = (url)=>{
+    set(ref(database, `rooms/${ROOM_ID}/youtube`), {url});
+  };
+
+  const handleMicDown = async ()=>{
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+      localStreamRef.current = stream;
+      const call = peerRef.current.call('broadcast', stream);
+      callRef.current = call;
+      setMicActive(true);
+    } catch(e){ alert('Mic access required'); }
+  };
+
+  const handleMicUp = ()=>{
+    if(localStreamRef.current){
+      localStreamRef.current.getTracks().forEach(t=>t.stop());
+      setMicActive(false);
+    }
   };
 
   if(!nickname){
@@ -145,7 +156,7 @@ export default function App() {
         <div className='text-sm text-gray-600'>India: {indiaTime} | Dubai: {dubaiTime}</div>
       </div>
 
-      <div ref={chatRefDiv} className='chat-window'>
+      <div className='chat-window' ref={chatRefDiv}>
         {messages.map(m=>(
           <div key={m.id} className={`chat-message ${m.from===nickname?'self':'partner'}`}>{m.text}</div>
         ))}
@@ -154,29 +165,35 @@ export default function App() {
       <div className='chat-input'>
         <input value={text} onChange={e=>setText(e.target.value)} placeholder='Say something...' />
         <button onClick={()=>sendMessage(text)}>Send</button>
-        <button onClick={()=>handleEmojiClick(emojis[Math.floor(Math.random()*emojis.length)])}>😊</button>
+        <select onChange={e=>sendEmoji(e.target.value)} defaultValue="">
+          <option value="" disabled>Emoji 🌟</option>
+          {EMOJIS.map(e=><option key={e} value={e}>{e}</option>)}
+        </select>
+        <button
+          className={`mic-btn ${micActive?'active':''}`}
+          onMouseDown={handleMicDown}
+          onMouseUp={handleMicUp}
+        >🎤 Hold to Talk</button>
       </div>
 
       <div className='text-center my-2'>
-        <button onClick={handleClickSurprise} className='surprise-btn'>Click Surprise!</button>
+        <button onClick={handleSurprise} className='surprise-btn'>Click Surprise!</button>
+      </div>
+
+      <div className='youtube-sync'>
+        <input type="text" placeholder="Paste YouTube URL" value={youtubeURL} onChange={e=>setYoutubeURL(e.target.value)} />
+        <button onClick={()=>updateYoutubeURL(youtubeURL)}>Load Video</button>
       </div>
 
       <div className='flex justify-around mt-2'>
-        <iframe width='48%' height='200' src='https://www.youtube.com/embed/2Vv-BfVoq4g?enablejsapi=1' frameBorder='0' allowFullScreen></iframe>
-        <iframe width='48%' height='200' src='' frameBorder='0' allowFullScreen></iframe>
+        {youtubeURL && <iframe width='48%' height='250' src={youtubeURL.replace("watch?v=","embed/")} frameBorder='0' allowFullScreen></iframe>}
       </div>
 
       <div className='text-center flex flex-col gap-1'>
         {surprises.map((s,i)=><div key={i} className='surprise'>{s}</div>)}
       </div>
 
-      <div className='flex justify-center gap-2 p-2'>
-        <input value={partnerPeerId} onChange={e=>setPartnerPeerId(e.target.value)} placeholder='Partner Peer ID' />
-        <button onClick={startCall}>Start Voice</button>
-        <div className='text-xs ml-2'>Your Peer ID: {peerId}</div>
-      </div>
-
-      {emojiRain.map((e,i)=><div key={i} style={{position:'absolute',top:Math.random()*window.innerHeight,left:Math.random()*window.innerWidth,fontSize:'2rem',pointerEvents:'none'}}>{e}</div>)}
+      {emojiRain.map((e,i)=><div key={i} className='emoji-rain'>{e}</div>)}
     </div>
   );
 }
