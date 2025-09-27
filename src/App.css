@@ -5,9 +5,35 @@ body{margin:0;font-family:sans-serif;background:#f3f4f6;}
 .video-section{flex:2;display:flex;flex-direction:column;gap:10px;}
 .chat-container{flex:1;display:flex;flex-direction:column;max-width:350px;}
 .chat-window{flex:1;padding:10px;display:flex;flex-direction:column;overflow-y:auto;gap:6px;background:#fefefe;border-radius:8px;border:1px solid #ccc;}
-.chat-message{padding:8px 12px;border-radius:10px;word-wrap:break-word;}
-.self{background:#ffedd5;align-self:flex-end;}
-.partner{background:#dbeafe;align-self:flex-start;}
+
+/* Updated chat bubble layout */
+.chat-message {
+  display: flex;
+  flex-direction: column; /* Name on top, message below */
+  padding: 8px 12px;
+  border-radius: 10px;
+  word-wrap: break-word;
+  max-width: 80%;
+}
+
+.self {
+  background: #ffedd5;
+  align-self: flex-end;
+  text-align: right;
+}
+
+.partner {
+  background: #dbeafe;
+  align-self: flex-start;
+  text-align: left;
+}
+
+.chat-message strong {
+  font-size: 0.85rem;
+  margin-bottom: 2px;
+  display: block;
+}
+
 .chat-input{display:flex;gap:6px;padding:10px 0;}
 .chat-input input{flex:1;padding:8px;border-radius:8px;border:1px solid #ccc;}
 .chat-input button,.chat-input select{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;}
