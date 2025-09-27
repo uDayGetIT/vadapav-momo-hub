@@ -1,0 +1,5 @@
+body,html,#root { margin:0; padding:0; height:100%; }
+.self { border-radius:12px; background-color: #fddfba; padding: 8px; }
+.partner { border-radius:12px; background-color: #bae1ff; padding: 8px; }
+input { outline:none; }
+button { cursor:pointer; }
