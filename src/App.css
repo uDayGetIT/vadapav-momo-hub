@@ -14,7 +14,7 @@ body{margin:0;font-family:sans-serif;background:#f3f4f6;}
 .mic-btn.active{background:#ff4500;color:white;}
 .nickname-select{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:10px;}
 .nickname-select button{padding:10px 20px;font-size:16px;border-radius:8px;border:none;cursor:pointer;background:#ff4500;color:white;}
-.emoji-rain{position:absolute;top:0;left:50%;font-size:2rem;pointer-events:none;animation:fall 3s linear forwards;}
+.emoji-rain{position:absolute;top:0;font-size:2rem;pointer-events:none;animation:fall 3s linear forwards;}
 @keyframes fall{0%{transform:translateY(0) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(360deg);opacity:0;}}
 .youtube-sync{display:flex;gap:6px;margin:10px 0;}
 .youtube-sync input{flex:1;padding:6px;border-radius:6px;border:1px solid #ccc;}
