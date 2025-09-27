@@ -1,305 +1,178 @@
-import React, { useEffect, useState, useRef } from 'react';
-import './App.css';
-import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, set, remove } from "firebase/database";
+import React, { useState, useEffect, useRef } from 'react';
 import Peer from 'peerjs';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyC-5glYkkh9TQVt4Rh0cJA9LU68SvJqNSg",
-  authDomain: "momo-mumbai.firebaseapp.com",
-  databaseURL: "https://momo-mumbai-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "momo-mumbai",
-  storageBucket: "momo-mumbai.appspot.com",
-  messagingSenderId: "480537909895",
-  appId: "1:480537909895:web:1a6806e44787074fd3b622"
-};
-
-const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
-
-const ROOM_ID = 'vadapav-momo-night';
-const NICKNAMES = ['ud0_0','CompetitiveExpert973'];
-const EMOJIS = ['❤️','😂','🥟','🍔','🌧️','🏙️','🎶','✨'];
-const SURPRISES = [
-  'Vadapav + Momo = Best Combo ❤️',
-  'Fireworks! From Mumbai rains to Dubai skies ✨',
-  'Meme: Long-distance snack debate 😂',
-  'Which is spicier? Vadapav or Momo? 🌶️'
-];
-
 export default function App() {
-  const [nickname, setNickname] = useState('');
+  const [peer, setPeer] = useState(null);
+  const [conn, setConn] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
-  const [emojiRain, setEmojiRain] = useState([]);
-  const [youtubeURL, setYoutubeURL] = useState('');
-  const [indiaTime, setIndiaTime] = useState('');
-  const [dubaiTime, setDubaiTime] = useState('');
-  const [micActive, setMicActive] = useState(false);
-  const [deleteRequest, setDeleteRequest] = useState({});
+  const [username, setUsername] = useState(`User_${Math.floor(Math.random()*1000)}`);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [currentVideoUrl, setCurrentVideoUrl] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmations, setDeleteConfirmations] = useState({});
+  const [flashMessage, setFlashMessage] = useState(null);
+  const [emojiRain, setEmojiRain] = useState([]);
 
-  const chatRefDiv = useRef();
-  const localStreamRef = useRef(null);
-  const peerRef = useRef(null);
-  const callRef = useRef(null);
-  const playerRef = useRef(null);
-  const ignoreNext = useRef(false);
-  const surpriseCount = useRef(0);
+  useEffect(() => {
+    const p = new Peer();
+    setPeer(p);
 
-  // Load chat & YouTube & emoji & delete request
-  useEffect(()=>{
-    const chatRefFirebase = ref(database, `rooms/${ROOM_ID}/chat`);
-    onValue(chatRefFirebase, snapshot=>{
-      const data = snapshot.val();
-      if(data && data.message){
-        const msg = data.message;
-        setMessages(prev=>prev.length && prev[prev.length-1].id===msg.id?prev:[...prev,msg]);
-        chatRefDiv.current.scrollTop = chatRefDiv.current.scrollHeight;
-      }
+    p.on('open', id => {
+      console.log("Peer connected:", id);
     });
 
-    const youtubeRef = ref(database, `rooms/${ROOM_ID}/youtube`);
-    onValue(youtubeRef, snapshot=>{
-      const data = snapshot.val();
-      if(data && data.url){
-        setYoutubeURL(data.url);
-        if(playerRef.current){
-          playerRef.current.loadVideoById(extractVideoID(data.url));
+    p.on('connection', c => {
+      setConn(c);
+      c.on('data', handleData);
+    });
+  }, []);
+
+  const handleData = (data) => {
+    if(data.type === 'chat'){
+      setMessages(m=>[...m,{user:data.user,msg:data.msg}]);
+    }
+    if(data.type === 'flash'){
+      triggerFlash(data.msg);
+    }
+    if(data.type === 'emoji'){
+      blastEmoji(data.emoji);
+    }
+    if(data.type === 'video'){
+      setCurrentVideoUrl(data.url);
+    }
+    if(data.type === 'deleteReq'){
+      setShowDeleteModal(true);
+    }
+    if(data.type === 'deleteConfirm'){
+      setDeleteConfirmations(prev => {
+        const updated = {...prev,[data.user]:true};
+        if(Object.keys(updated).length >= 2){
+          setMessages([]); // clear chat when both confirmed
+          setShowDeleteModal(false);
+          return {};
         }
-      }
-    });
-
-    const emojiRef = ref(database, `rooms/${ROOM_ID}/emoji`);
-    onValue(emojiRef, snapshot=>{
-      const data = snapshot.val();
-      if(data && data.emoji){
-        const emojiArray = [];
-        for(let i=0;i<50;i++){
-          emojiArray.push({
-            e:data.emoji,
-            left: Math.random()*100,
-            rotate: Math.random()*360
-          });
-        }
-        setEmojiRain(emojiArray);
-        setTimeout(()=>setEmojiRain([]),3000);
-      }
-    });
-
-    const ytActionRef = ref(database, `rooms/${ROOM_ID}/youtubeAction`);
-    onValue(ytActionRef, snapshot=>{
-      const data = snapshot.val();
-      if(data && playerRef.current){
-        if(ignoreNext.current){ ignoreNext.current=false; return; }
-        switch(data.action){
-          case 'play':
-            playerRef.current.seekTo(data.time||0,true);
-            playerRef.current.playVideo();
-            break;
-          case 'pause':
-            playerRef.current.pauseVideo();
-            break;
-          case 'seek':
-            playerRef.current.seekTo(data.time||0,true);
-            break;
-        }
-      }
-    });
-
-    const deleteRef = ref(database, `rooms/${ROOM_ID}/deleteRequest`);
-    onValue(deleteRef, snapshot=>{
-      const data = snapshot.val();
-      setDeleteRequest(data || {});
-      if(data && Object.values(data).filter(v=>v==='YES').length===2){
-        remove(ref(database, `rooms/${ROOM_ID}/chat`));
-        remove(ref(database, `rooms/${ROOM_ID}/deleteRequest`));
-      }
-    });
-  },[]);
-
-  // Clock
-  useEffect(()=>{
-    const timer = setInterval(()=>{
-      const india = new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Kolkata'});
-      const dubai = new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Dubai'});
-      setIndiaTime(india);
-      setDubaiTime(dubai);
-    },1000);
-    return ()=>clearInterval(timer);
-  },[]);
-
-  // PeerJS
-  useEffect(()=>{
-    const peer = new Peer();
-    peerRef.current = peer;
-    peer.on('call', async call=>{
-      try{
-        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-        localStreamRef.current = stream;
-        call.answer(stream);
-        call.on('stream', remoteStream=>{
-          const audioEl = document.getElementById('remoteAudio');
-          if(audioEl) audioEl.srcObject = remoteStream;
-        });
-        callRef.current = call;
-      }catch(e){ console.warn('Mic denied',e);}
-    });
-  },[]);
-
-  // YouTube
-  useEffect(()=>{
-    const tag = document.createElement('script');
-    tag.src = "https://www.youtube.com/iframe_api";
-    document.body.appendChild(tag);
-    window.onYouTubeIframeAPIReady = () => {
-      playerRef.current = new window.YT.Player('yt-player', {
-        height: '250',
-        width: '100%',
-        videoId: extractVideoID(youtubeURL),
-        playerVars:{controls:1},
-        events:{'onStateChange':onPlayerStateChange}
+        return updated;
       });
-    };
-  },[]);
-
-  useEffect(()=>{
-    if(playerRef.current && youtubeURL){
-      playerRef.current.loadVideoById(extractVideoID(youtubeURL));
-    }
-  },[youtubeURL]);
-
-  const extractVideoID = url=>{
-    const reg = /[?&]v=([^&#]+)/;
-    const match = url.match(reg);
-    return match ? match[1] : url;
-  };
-
-  const onPlayerStateChange = event=>{
-    if(!playerRef.current) return;
-    const state = event.data;
-    const currentTime = playerRef.current.getCurrentTime();
-    ignoreNext.current=true;
-    if(state===1){
-      set(ref(database, `rooms/${ROOM_ID}/youtubeAction`), {action:'play', time:currentTime, ts:Date.now()});
-    } else if(state===2){
-      set(ref(database, `rooms/${ROOM_ID}/youtubeAction`), {action:'pause', time:currentTime, ts:Date.now()});
     }
   };
 
-  const sendMessage = msgText=>{
-    if(!msgText.trim()) return;
-    const msgObj = {id:`${Date.now()}-${Math.random()}`, from:nickname, text:msgText, ts:Date.now()};
-    set(ref(database, `rooms/${ROOM_ID}/chat`), {message:msgObj});
+  const sendMessage = (msg) => {
+    if(!msg.trim()) return;
+    const payload = {type:'chat',user:username,msg};
+    setMessages(m=>[...m,{user:username,msg}]);
+    conn && conn.send(payload);
     setText('');
   };
 
-  const sendEmoji = emoji=>{
-    set(ref(database, `rooms/${ROOM_ID}/emoji`), {emoji});
+  const handleEnterKey = (e) => {
+    if(e.key === 'Enter') sendMessage(text);
   };
 
-  const handleSurprise = ()=>{
-    const next = surpriseCount.current % SURPRISES.length;
-    const surpriseMsg = {id:`surp-${Date.now()}`, from:'🎉Surprise', text:SURPRISES[next], ts:Date.now()};
-    set(ref(database, `rooms/${ROOM_ID}/chat`), {message:surpriseMsg});
-    surpriseCount.current++;
-    setTimeout(()=>{
-      remove(ref(database, `rooms/${ROOM_ID}/chat`));
-    },3000);
+  const triggerFlash = (msg) => {
+    setFlashMessage(msg);
+    setTimeout(()=>setFlashMessage(null),3000);
   };
 
-  const updateYoutubeURL = url=>{
-    set(ref(database, `rooms/${ROOM_ID}/youtube`), {url});
-  };
-
-  const handleMicDown = async ()=>{
-    try{
-      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-      localStreamRef.current = stream;
-      const call = peerRef.current.call('broadcast', stream);
-      callRef.current = call;
-      setMicActive(true);
-    }catch(e){ alert('Mic access required'); }
-  };
-
-  const handleMicUp = ()=>{
-    if(localStreamRef.current){
-      localStreamRef.current.getTracks().forEach(t=>t.stop());
-      setMicActive(false);
+  const blastEmoji = (emoji) => {
+    let drops = [];
+    for(let i=0;i<50;i++){
+      drops.push({
+        e:emoji,
+        left:Math.random()*100,
+        top:-20,
+        rotate:Math.random()*360
+      });
     }
+    setEmojiRain(drops);
+    setTimeout(()=>setEmojiRain([]),3000);
   };
 
-  const requestDelete = ()=>{
+  const requestDelete = () => {
     setShowDeleteModal(true);
+    conn && conn.send({type:'deleteReq'});
   };
 
-  const confirmDelete = ()=>{
-    set(ref(database, `rooms/${ROOM_ID}/deleteRequest/${nickname}`),'YES');
+  const confirmDelete = () => {
+    conn && conn.send({type:'deleteConfirm',user:username});
+    setDeleteConfirmations(prev=>({...prev,[username]:true}));
+  };
+
+  const cancelDelete = () => {
     setShowDeleteModal(false);
+    setDeleteConfirmations({});
   };
 
-  const cancelDelete = ()=>setShowDeleteModal(false);
-
-  const handleEnterKey = e=>{
-    if(e.key==='Enter') sendMessage(text);
+  const loadVideo = () => {
+    if(!videoUrl.trim()) return;
+    setCurrentVideoUrl(videoUrl);
+    conn && conn.send({type:'video',url:videoUrl});
   };
-
-  if(!nickname){
-    return (
-      <div className='nickname-select'>
-        <h2>Select your nickname</h2>
-        {NICKNAMES.map(nick=><button key={nick} onClick={()=>setNickname(nick)}>{nick}</button>)}
-      </div>
-    )
-  }
 
   return (
-    <div className='app-container'>
-      <audio id='remoteAudio' autoPlay />
-      <div className='header'>
-        <div><strong>{NICKNAMES[0]}</strong> 🌧️ x <strong>{NICKNAMES[1]}</strong> 🏙️</div>
-        <div className='text-sm text-gray-600'>India: {indiaTime} | Dubai: {dubaiTime}</div>
-      </div>
-
-      <div className='main-content'>
-        <div className='video-section'>
-          <div id='yt-player' style={{width:'100%',height:'250px',background:'#000'}}></div>
-          <div className='youtube-sync'>
-            <input type="text" placeholder="Paste YouTube URL" value={youtubeURL} onChange={e=>setYoutubeURL(e.target.value)} />
-            <button onClick={()=>updateYoutubeURL(youtubeURL)}>Load Video</button>
-          </div>
-          <button onClick={handleSurprise} className='surprise-btn'>Surprise Me!</button>
-          <button onClick={requestDelete} className='delete-btn'>Delete All Chat</button>
+    <div className='app'>
+      {/* Chat UI */}
+      <div className="chat-container">
+        <div className="chat-header">
+          <h2>Chat</h2>
+          <button onClick={requestDelete}>Delete All</button>
         </div>
-
-        <div className='chat-container'>
-          <div className='chat-window' ref={chatRefDiv}>
-            {messages.map(m => (
-              <div key={m.id} className={`chat-message ${m.from === nickname ? 'self' : 'partner'}`}>
-                <strong>{m.from}</strong>
-                <span>{m.text}</span>
-              </div>
-            ))}
-          </div>
-          <div className='chat-input'>
-            <input type='text' value={text} onChange={e=>setText(e.target.value)} onKeyDown={handleEnterKey} placeholder='Type message...' />
-            <button onClick={()=>sendMessage(text)}>Send</button>
-            <button onMouseDown={handleMicDown} onMouseUp={handleMicUp} className={`mic-btn ${micActive?'active':''}`}>🎤</button>
-            <select onChange={e=>sendEmoji(e.target.value)}>
-              <option value=''>Emoji</option>
-              {EMOJIS.map(e=> <option key={e} value={e}>{e}</option>)}
-            </select>
-          </div>
+        <div className="chat-box">
+          {messages.map((m,i)=>(
+            <div key={i} className={`chat-msg ${m.user===username?'me':'other'}`}>
+              <div className="chat-user">{m.user}</div>
+              <div className="chat-text">{m.msg}</div>
+            </div>
+          ))}
+        </div>
+        <div className="chat-input">
+          <input 
+            type="text" 
+            value={text} 
+            onChange={e=>setText(e.target.value)} 
+            onKeyDown={handleEnterKey} 
+            placeholder="Type message..." 
+          />
+          <button onClick={()=>sendMessage(text)}>Send</button>
+          <button onClick={()=>{triggerFlash("Surprise!"); conn && conn.send({type:'flash',msg:"Surprise!"});}}>Surprise Me</button>
+          <select onChange={e=>{blastEmoji(e.target.value); conn && conn.send({type:'emoji',emoji:e.target.value})}}>
+            <option value="">Emoji</option>
+            {["😂","😍","🔥","💖","🎉","🌸","🍕"].map(e=><option key={e} value={e}>{e}</option>)}
+          </select>
         </div>
       </div>
 
+      {/* Video Player */}
+      <div className="video-section">
+        <input type="text" value={videoUrl} onChange={e=>setVideoUrl(e.target.value)} placeholder="Enter YouTube URL" />
+        <button onClick={loadVideo}>Load Video</button>
+        {currentVideoUrl && (
+          <div className="video-frame">
+            <iframe 
+              width="100%" 
+              height="315" 
+              src={currentVideoUrl.replace("watch?v=","embed/")} 
+              frameBorder="0" 
+              allow="autoplay; encrypted-media" 
+              allowFullScreen
+              title="YouTube Video"
+            ></iframe>
+          </div>
+        )}
+      </div>
+
+      {/* Flash message */}
+      {flashMessage && <div className="flash-msg">{flashMessage}</div>}
+
+      {/* Emoji rain */}
       {emojiRain.map((e,i)=>(
-        <div key={i} className='emoji-rain' style={{left:`${e.left}%`,transform:`rotate(${e.rotate}deg)`}}>{e.e}</div>
+        <div key={i} className="emoji-rain" style={{left:`${e.left}%`,top:`${e.top}px`,transform:`rotate(${e.rotate}deg)`}}>{e.e}</div>
       ))}
 
+      {/* Delete modal */}
       {showDeleteModal && (
-        <div style={{position:'fixed',top:0,left:0,width:'100%',height:'100%',background:'rgba(0,0,0,0.5)',display:'flex',justifyContent:'center',alignItems:'center'}}>
-          <div style={{background:'#fff',padding:20,borderRadius:8}}>
+        <div className="modal">
+          <div className="modal-box">
             <p>Do both of you want to delete all chat?</p>
             <button onClick={confirmDelete}>YES</button>
             <button onClick={cancelDelete}>NO</button>
