@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './App.css';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, set } from "firebase/database";
+import { getDatabase, ref, onValue, set, get, remove } from "firebase/database";
 import Peer from 'peerjs';
 
 const firebaseConfig = {
@@ -32,12 +32,12 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [clickCount, setClickCount] = useState(0);
-  const [surprises, setSurprises] = useState([]);
   const [emojiRain, setEmojiRain] = useState([]);
   const [youtubeURL, setYoutubeURL] = useState('');
   const [indiaTime, setIndiaTime] = useState('');
   const [dubaiTime, setDubaiTime] = useState('');
   const [micActive, setMicActive] = useState(false);
+  const [deleteRequest, setDeleteRequest] = useState([]);
   const chatRefDiv = useRef();
   const localStreamRef = useRef(null);
   const peerRef = useRef(null);
@@ -50,7 +50,7 @@ export default function App() {
     const chatRefFirebase = ref(database, `rooms/${ROOM_ID}/chat`);
     onValue(chatRefFirebase, snapshot => {
       const data = snapshot.val();
-      if (data && data.message) {
+      if(data && data.message){
         const msg = data.message;
         setMessages(prev => prev.length && prev[prev.length-1].id===msg.id?prev:[...prev,msg]);
         chatRefDiv.current.scrollTop = chatRefDiv.current.scrollHeight;
@@ -60,7 +60,7 @@ export default function App() {
     const youtubeRef = ref(database, `rooms/${ROOM_ID}/youtube`);
     onValue(youtubeRef, snapshot => {
       const data = snapshot.val();
-      if(data && data.url) {
+      if(data && data.url){
         setYoutubeURL(data.url);
         if(playerRef.current){
           playerRef.current.loadVideoById(extractVideoID(data.url));
@@ -71,9 +71,12 @@ export default function App() {
     const emojiRef = ref(database, `rooms/${ROOM_ID}/emoji`);
     onValue(emojiRef, snapshot => {
       const data = snapshot.val();
-      if(data && data.emoji) {
-        setEmojiRain(prev => [...prev, data.emoji]);
-        setTimeout(()=>setEmojiRain(prev=>prev.slice(1)),3000);
+      if(data && data.emoji){
+        // extreme emoji rain
+        for(let i=0;i<20;i++){
+          setTimeout(()=>setEmojiRain(prev=>[...prev,data.emoji]),i*50);
+        }
+        setTimeout(()=>setEmojiRain([]),3000);
       }
     });
 
@@ -81,10 +84,7 @@ export default function App() {
     onValue(ytActionRef, snapshot => {
       const data = snapshot.val();
       if(data && playerRef.current){
-        if(ignoreNext.current){
-          ignoreNext.current=false;
-          return;
-        }
+        if(ignoreNext.current){ ignoreNext.current=false; return; }
         switch(data.action){
           case 'play':
             playerRef.current.seekTo(data.time||0,true);
@@ -97,6 +97,16 @@ export default function App() {
             playerRef.current.seekTo(data.time||0,true);
             break;
         }
+      }
+    });
+
+    const deleteRef = ref(database, `rooms/${ROOM_ID}/deleteRequest`);
+    onValue(deleteRef, snapshot=>{
+      const data = snapshot.val();
+      setDeleteRequest(data ? Object.values(data) : []);
+      if(data && Object.values(data).filter(v=>v==='YES').length===2){
+        remove(ref(database, `rooms/${ROOM_ID}/chat`));
+        remove(ref(database, `rooms/${ROOM_ID}/deleteRequest`));
       }
     });
   }, []);
@@ -138,8 +148,9 @@ export default function App() {
     window.onYouTubeIframeAPIReady = () => {
       playerRef.current = new window.YT.Player('yt-player', {
         height: '250',
-        width: '48%',
+        width: '100%',
         videoId: extractVideoID(youtubeURL),
+        playerVars:{controls:1},
         events: { 'onStateChange': onPlayerStateChange }
       });
     };
@@ -177,8 +188,10 @@ export default function App() {
 
   const handleSurprise = ()=>{
     const next = clickCount % SURPRISES.length;
-    setSurprises(prev=>[...prev,SURPRISES[next]]);
+    const surpriseMsg = {id:`surp-${Date.now()}`, from:'🎉Surprise', text:SURPRISES[next], ts:Date.now()};
+    set(ref(database, `rooms/${ROOM_ID}/chat`), {message:surpriseMsg});
     setClickCount(prev=>prev+1);
+    setTimeout(()=>setMessages(prev=>prev.filter(m=>m.id!==surpriseMsg.id)),3000);
   };
 
   const updateYoutubeURL = (url)=>{
@@ -202,6 +215,14 @@ export default function App() {
     }
   };
 
+  const requestDelete = ()=>{
+    set(ref(database, `rooms/${ROOM_ID}/deleteRequest/${nickname}`),'YES');
+  };
+
+  const handleEnterKey = e=>{
+    if(e.key==='Enter') sendMessage(text);
+  };
+
   if(!nickname){
     return (
       <div className='nickname-select'>
@@ -214,46 +235,41 @@ export default function App() {
   return (
     <div className='app-container'>
       <audio id='remoteAudio' autoPlay />
-      <div className='chat-header'>
+      <div className='header'>
         <div><strong>{NICKNAMES[0]}</strong> 🌧️ x <strong>{NICKNAMES[1]}</strong> 🏙️</div>
         <div className='text-sm text-gray-600'>India: {indiaTime} | Dubai: {dubaiTime}</div>
       </div>
 
-      <div className='chat-window' ref={chatRefDiv}>
-        {messages.map(m=>(
-          <div key={m.id} className={`chat-message ${m.from===nickname?'self':'partner'}`}>{m.text}</div>
-        ))}
-      </div>
+      <div className='main-content'>
+        <div className='video-section'>
+          <div id='yt-player'></div>
+          <div className='youtube-sync'>
+            <input type="text" placeholder="Paste YouTube URL" value={youtubeURL} onChange={e=>setYoutubeURL(e.target.value)} />
+            <button onClick={()=>updateYoutubeURL(youtubeURL)}>Load Video</button>
+          </div>
+          <button onClick={handleSurprise} className='surprise-btn'>Surprise Me!</button>
+          <button onClick={requestDelete} className='delete-btn'>Delete All Chat</button>
+        </div>
 
-      <div className='chat-input'>
-        <input value={text} onChange={e=>setText(e.target.value)} placeholder='Say something...' />
-        <button onClick={()=>sendMessage(text)}>Send</button>
-        <select onChange={e=>sendEmoji(e.target.value)} defaultValue="">
-          <option value="" disabled>Emoji 🌟</option>
-          {EMOJIS.map(e=><option key={e} value={e}>{e}</option>)}
-        </select>
-        <button
-          className={`mic-btn ${micActive?'active':''}`}
-          onMouseDown={handleMicDown}
-          onMouseUp={handleMicUp}
-        >🎤 Hold to Talk</button>
-      </div>
+        <div className='chat-container'>
+          <div className='chat-window' ref={chatRefDiv}>
+            {messages.map(m=>(
+              <div key={m.id} className={`chat-message ${m.from===nickname?'self':'partner'}`}>
+                <strong>{m.from}:</strong> {m.text}
+              </div>
+            ))}
+          </div>
 
-      <div className='text-center my-2'>
-        <button onClick={handleSurprise} className='surprise-btn'>Click Surprise!</button>
-      </div>
-
-      <div className='youtube-sync'>
-        <input type="text" placeholder="Paste YouTube URL" value={youtubeURL} onChange={e=>setYoutubeURL(e.target.value)} />
-        <button onClick={()=>updateYoutubeURL(youtubeURL)}>Load Video</button>
-      </div>
-
-      <div className='flex justify-around mt-2'>
-        <div id='yt-player'></div>
-      </div>
-
-      <div className='text-center flex flex-col gap-1'>
-        {surprises.map((s,i)=><div key={i} className='surprise'>{s}</div>)}
+          <div className='chat-input'>
+            <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={handleEnterKey} placeholder='Say something...' />
+            <button onClick={()=>sendMessage(text)}>Send</button>
+            <select onChange={e=>sendEmoji(e.target.value)} defaultValue="">
+              <option value="" disabled>Emoji 🌟</option>
+              {EMOJIS.map(e=><option key={e} value={e}>{e}</option>)}
+            </select>
+            <button className={`mic-btn ${micActive?'active':''}`} onMouseDown={handleMicDown} onMouseUp={handleMicUp}>🎤 Hold to Talk</button>
+          </div>
+        </div>
       </div>
 
       {emojiRain.map((e,i)=><div key={i} className='emoji-rain'>{e}</div>)}
