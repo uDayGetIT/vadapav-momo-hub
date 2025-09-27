@@ -1,4 +1,3 @@
-// src/App.js
 import React, { useEffect, useState, useRef } from 'react';
 import './App.css';
 import { initializeApp } from "firebase/app";
@@ -20,8 +19,7 @@ const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
 
 const ROOM_ID = 'vadapav-momo-night';
-const NICKNAME = 'ud0_0';
-const PARTNER = 'CompetitiveExpert973';
+const NICKNAMES = ['ud0_0','CompetitiveExpert973'];
 
 const emojis = ['❤️','😂','🥟','🍔','🌧️','🏙️','🎶','✨'];
 const SURPRISES = [
@@ -32,6 +30,7 @@ const SURPRISES = [
 ];
 
 export default function App() {
+  const [nickname, setNickname] = useState('');
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [clickCount, setClickCount] = useState(0);
@@ -110,7 +109,7 @@ export default function App() {
   // Send chat message
   const sendMessage = (msgText)=>{
     if(!msgText.trim()) return;
-    const msgObj = {id:`${Date.now()}-${Math.random()}`, from:NICKNAME, text:msgText, ts:Date.now()};
+    const msgObj = {id:`${Date.now()}-${Math.random()}`, from:nickname, text:msgText, ts:Date.now()};
     set(ref(database, `rooms/${ROOM_ID}/chat`), {message:msgObj});
     setText('');
   };
@@ -129,43 +128,52 @@ export default function App() {
     setClickCount(prev=>prev+1);
   };
 
+  if(!nickname){
+    return (
+      <div className='nickname-select'>
+        <h2>Select your nickname</h2>
+        {NICKNAMES.map(nick=><button key={nick} onClick={()=>setNickname(nick)}>{nick}</button>)}
+      </div>
+    )
+  }
+
   return (
-    <div className='min-h-screen bg-gray-100 flex flex-col p-2 relative'>
+    <div className='app-container'>
       <audio id='remoteAudio' autoPlay />
-      <div className='flex justify-between p-2 border-b'>
-        <div><strong>{NICKNAME}</strong> 🌧️ x <strong>{PARTNER}</strong> 🏙️</div>
+      <div className='chat-header'>
+        <div><strong>{NICKNAMES[0]}</strong> 🌧️ x <strong>{NICKNAMES[1]}</strong> 🏙️</div>
         <div className='text-sm text-gray-600'>India: {indiaTime} | Dubai: {dubaiTime}</div>
       </div>
 
-      <div ref={chatRefDiv} className='flex-1 overflow-y-auto p-2 flex flex-col gap-2'>
+      <div ref={chatRefDiv} className='chat-window'>
         {messages.map(m=>(
-          <div key={m.id} className={`max-w-[60%] p-2 rounded ${m.from===NICKNAME?'self bg-orange-100 self-end':'partner bg-blue-100 self-start'}`}>{m.text}</div>
+          <div key={m.id} className={`chat-message ${m.from===nickname?'self':'partner'}`}>{m.text}</div>
         ))}
       </div>
 
-      <div className='flex gap-2 p-2'>
-        <input value={text} onChange={e=>setText(e.target.value)} className='flex-1 p-2 border rounded' placeholder='Say something...'/>
-        <button onClick={()=>sendMessage(text)} className='px-3 bg-orange-500 text-white rounded'>Send</button>
-        <button onClick={()=>handleEmojiClick(emojis[Math.floor(Math.random()*emojis.length)])} className='px-2 rounded bg-yellow-200'>😊</button>
+      <div className='chat-input'>
+        <input value={text} onChange={e=>setText(e.target.value)} placeholder='Say something...' />
+        <button onClick={()=>sendMessage(text)}>Send</button>
+        <button onClick={()=>handleEmojiClick(emojis[Math.floor(Math.random()*emojis.length)])}>😊</button>
       </div>
 
       <div className='text-center my-2'>
-        <button onClick={handleClickSurprise} className='px-4 py-2 bg-green-400 text-white rounded'>Click Surprise!</button>
-      </div>
-
-      <div className='flex justify-center gap-2 p-2'>
-        <input value={partnerPeerId} onChange={e=>setPartnerPeerId(e.target.value)} placeholder='Partner Peer ID' className='p-1 border rounded'/>
-        <button onClick={startCall} className='px-3 bg-blue-500 text-white rounded'>Start Voice</button>
-        <div className='text-xs text-gray-500 ml-2'>Your Peer ID: {peerId}</div>
-      </div>
-
-      <div className='text-center flex flex-col gap-1'>
-        {surprises.map((s,i)=><div key={i} className='bg-white p-2 rounded shadow'>{s}</div>)}
+        <button onClick={handleClickSurprise} className='surprise-btn'>Click Surprise!</button>
       </div>
 
       <div className='flex justify-around mt-2'>
-        <iframe width='45%' height='200' src='https://www.youtube.com/embed/2Vv-BfVoq4g?enablejsapi=1' frameBorder='0' allowFullScreen></iframe>
-        <iframe width='45%' height='200' src='' frameBorder='0' allowFullScreen></iframe>
+        <iframe width='48%' height='200' src='https://www.youtube.com/embed/2Vv-BfVoq4g?enablejsapi=1' frameBorder='0' allowFullScreen></iframe>
+        <iframe width='48%' height='200' src='' frameBorder='0' allowFullScreen></iframe>
+      </div>
+
+      <div className='text-center flex flex-col gap-1'>
+        {surprises.map((s,i)=><div key={i} className='surprise'>{s}</div>)}
+      </div>
+
+      <div className='flex justify-center gap-2 p-2'>
+        <input value={partnerPeerId} onChange={e=>setPartnerPeerId(e.target.value)} placeholder='Partner Peer ID' />
+        <button onClick={startCall}>Start Voice</button>
+        <div className='text-xs ml-2'>Your Peer ID: {peerId}</div>
       </div>
 
       {emojiRain.map((e,i)=><div key={i} style={{position:'absolute',top:Math.random()*window.innerHeight,left:Math.random()*window.innerWidth,fontSize:'2rem',pointerEvents:'none'}}>{e}</div>)}
