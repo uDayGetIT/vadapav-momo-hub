@@ -1,40 +1,22 @@
-body { margin:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #f8fafc, #e2e8f0); }
-
-.app-container { width:100%; max-width:800px; margin:auto; display:flex; flex-direction:column; border-radius:10px; background:white; box-shadow:0 5px 15px rgba(0,0,0,0.1); overflow:hidden; min-height:100vh; padding:10px; position:relative; }
-
-.chat-header { background:#ff4500; color:white; padding:10px; font-weight:bold; display:flex; justify-content:space-between; }
-
-.chat-window { flex:1; padding:10px; display:flex; flex-direction:column; overflow-y:auto; gap:6px; margin-bottom:5px; }
-
-.chat-message { max-width:60%; padding:8px 12px; border-radius:10px; word-wrap:break-word; }
-
-.self { background:#ffedd5; align-self:flex-end; }
-
-.partner { background:#dbeafe; align-self:flex-start; }
-
-.chat-input { display:flex; gap:6px; padding:10px 0; }
-
-.chat-input input { flex:1; padding:8px; border-radius:8px; border:1px solid #ccc; }
-
-.chat-input button, .chat-input select { padding:8px 12px; border:none; border-radius:8px; cursor:pointer; }
-
-.mic-btn.active { background:#ff4500; color:white; }
-
-.nickname-select { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; gap:10px; }
-
-.nickname-select button { padding:10px 20px; font-size:16px; border-radius:8px; border:none; cursor:pointer; background:#ff4500; color:white; }
-
-.surprise { background:#fef3c7; padding:8px; margin:5px 0; border-radius:8px; text-align:center; font-weight:bold; }
-
-.emoji-rain { position:absolute; top:0; left:50%; font-size:2rem; pointer-events:none; animation:fall 3s linear forwards; }
-
-@keyframes fall {
-  0% { transform: translateY(0) rotate(0deg); opacity:1; }
-  100% { transform: translateY(90vh) rotate(360deg); opacity:0; }
-}
-
-.youtube-sync { display:flex; gap:6px; margin:10px 0; }
-
-.youtube-sync input { flex:1; padding:6px; border-radius:6px; border:1px solid #ccc; }
-
-.youtube-sync button { padding:6px 12px; border:none; border-radius:6px; cursor:pointer; background:#ff4500; color:white; }
+body{margin:0;font-family:sans-serif;background:#f3f4f6;}
+.app-container{width:100%;max-width:1200px;margin:auto;min-height:100vh;display:flex;flex-direction:column;position:relative;padding:10px;}
+.header{display:flex;justify-content:space-between;background:#ff4500;color:white;padding:10px;border-radius:8px;margin-bottom:10px;}
+.main-content{display:flex;flex-direction:row;gap:10px;flex:1;flex-wrap:wrap;}
+.video-section{flex:2;display:flex;flex-direction:column;gap:10px;}
+.chat-container{flex:1;display:flex;flex-direction:column;max-width:350px;}
+.chat-window{flex:1;padding:10px;display:flex;flex-direction:column;overflow-y:auto;gap:6px;background:#fefefe;border-radius:8px;border:1px solid #ccc;}
+.chat-message{padding:8px 12px;border-radius:10px;word-wrap:break-word;}
+.self{background:#ffedd5;align-self:flex-end;}
+.partner{background:#dbeafe;align-self:flex-start;}
+.chat-input{display:flex;gap:6px;padding:10px 0;}
+.chat-input input{flex:1;padding:8px;border-radius:8px;border:1px solid #ccc;}
+.chat-input button,.chat-input select{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;}
+.mic-btn.active{background:#ff4500;color:white;}
+.nickname-select{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:10px;}
+.nickname-select button{padding:10px 20px;font-size:16px;border-radius:8px;border:none;cursor:pointer;background:#ff4500;color:white;}
+.emoji-rain{position:absolute;top:0;left:50%;font-size:2rem;pointer-events:none;animation:fall 3s linear forwards;}
+@keyframes fall{0%{transform:translateY(0) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(360deg);opacity:0;}}
+.youtube-sync{display:flex;gap:6px;margin:10px 0;}
+.youtube-sync input{flex:1;padding:6px;border-radius:6px;border:1px solid #ccc;}
+.youtube-sync button,.surprise-btn,.delete-btn{padding:6px 12px;border:none;border-radius:6px;cursor:pointer;background:#ff4500;color:white;}
+@media (max-width:768px){.main-content{flex-direction:column;}.chat-container{max-width:100%;}}
