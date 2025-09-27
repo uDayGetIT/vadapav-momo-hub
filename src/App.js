@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './App.css';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, set, get, remove } from "firebase/database";
+import { getDatabase, ref, onValue, set, remove } from "firebase/database";
 import Peer from 'peerjs';
 
 const firebaseConfig = {
@@ -31,7 +31,6 @@ export default function App() {
   const [nickname, setNickname] = useState('');
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
-  const [clickCount, setClickCount] = useState(0);
   const [emojiRain, setEmojiRain] = useState([]);
   const [youtubeURL, setYoutubeURL] = useState('');
   const [indiaTime, setIndiaTime] = useState('');
@@ -44,21 +43,21 @@ export default function App() {
   const callRef = useRef(null);
   const playerRef = useRef(null);
   const ignoreNext = useRef(false);
+  const surpriseCount = useRef(0);
 
-  // Firebase listeners
-  useEffect(() => {
+  useEffect(()=>{
     const chatRefFirebase = ref(database, `rooms/${ROOM_ID}/chat`);
-    onValue(chatRefFirebase, snapshot => {
+    onValue(chatRefFirebase, snapshot=>{
       const data = snapshot.val();
       if(data && data.message){
         const msg = data.message;
-        setMessages(prev => prev.length && prev[prev.length-1].id===msg.id?prev:[...prev,msg]);
+        setMessages(prev=>prev.length && prev[prev.length-1].id===msg.id?prev:[...prev,msg]);
         chatRefDiv.current.scrollTop = chatRefDiv.current.scrollHeight;
       }
     });
 
     const youtubeRef = ref(database, `rooms/${ROOM_ID}/youtube`);
-    onValue(youtubeRef, snapshot => {
+    onValue(youtubeRef, snapshot=>{
       const data = snapshot.val();
       if(data && data.url){
         setYoutubeURL(data.url);
@@ -69,11 +68,10 @@ export default function App() {
     });
 
     const emojiRef = ref(database, `rooms/${ROOM_ID}/emoji`);
-    onValue(emojiRef, snapshot => {
+    onValue(emojiRef, snapshot=>{
       const data = snapshot.val();
       if(data && data.emoji){
-        // extreme emoji rain
-        for(let i=0;i<20;i++){
+        for(let i=0;i<50;i++){
           setTimeout(()=>setEmojiRain(prev=>[...prev,data.emoji]),i*50);
         }
         setTimeout(()=>setEmojiRain([]),3000);
@@ -81,7 +79,7 @@ export default function App() {
     });
 
     const ytActionRef = ref(database, `rooms/${ROOM_ID}/youtubeAction`);
-    onValue(ytActionRef, snapshot => {
+    onValue(ytActionRef, snapshot=>{
       const data = snapshot.val();
       if(data && playerRef.current){
         if(ignoreNext.current){ ignoreNext.current=false; return; }
@@ -109,10 +107,9 @@ export default function App() {
         remove(ref(database, `rooms/${ROOM_ID}/deleteRequest`));
       }
     });
-  }, []);
+  },[]);
 
-  // Clocks
-  useEffect(() => {
+  useEffect(()=>{
     const timer = setInterval(()=>{
       const india = new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Kolkata'});
       const dubai = new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Dubai'});
@@ -122,13 +119,12 @@ export default function App() {
     return ()=>clearInterval(timer);
   },[]);
 
-  // PeerJS for push-to-talk
   useEffect(()=>{
     const peer = new Peer();
     peerRef.current = peer;
-    peer.on('call', async call => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+    peer.on('call', async call=>{
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
         localStreamRef.current = stream;
         call.answer(stream);
         call.on('stream', remoteStream=>{
@@ -136,12 +132,11 @@ export default function App() {
           if(audioEl) audioEl.srcObject = remoteStream;
         });
         callRef.current = call;
-      } catch(e){ console.warn('Mic access denied',e);}
+      }catch(e){ console.warn('Mic denied',e);}
     });
   },[]);
 
-  // YouTube IFrame API
-  useEffect(() => {
+  useEffect(()=>{
     const tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
     document.body.appendChild(tag);
@@ -151,26 +146,25 @@ export default function App() {
         width: '100%',
         videoId: extractVideoID(youtubeURL),
         playerVars:{controls:1},
-        events: { 'onStateChange': onPlayerStateChange }
+        events:{'onStateChange':onPlayerStateChange}
       });
     };
-  }, []);
+  },[]);
 
-  const extractVideoID = (url) => {
+  const extractVideoID = url=>{
     const reg = /[?&]v=([^&#]+)/;
     const match = url.match(reg);
     return match ? match[1] : url;
   };
 
-  const onPlayerStateChange = (event) => {
+  const onPlayerStateChange = event=>{
     if(!playerRef.current) return;
     const state = event.data;
     const currentTime = playerRef.current.getCurrentTime();
     ignoreNext.current=true;
-
-    if(state === 1){
+    if(state===1){
       set(ref(database, `rooms/${ROOM_ID}/youtubeAction`), {action:'play', time:currentTime, ts:Date.now()});
-    } else if(state === 2){
+    } else if(state===2){
       set(ref(database, `rooms/${ROOM_ID}/youtubeAction`), {action:'pause', time:currentTime, ts:Date.now()});
     }
   };
@@ -187,25 +181,25 @@ export default function App() {
   };
 
   const handleSurprise = ()=>{
-    const next = clickCount % SURPRISES.length;
+    const next = surpriseCount.current % SURPRISES.length;
     const surpriseMsg = {id:`surp-${Date.now()}`, from:'🎉Surprise', text:SURPRISES[next], ts:Date.now()};
     set(ref(database, `rooms/${ROOM_ID}/chat`), {message:surpriseMsg});
-    setClickCount(prev=>prev+1);
+    surpriseCount.current++;
     setTimeout(()=>setMessages(prev=>prev.filter(m=>m.id!==surpriseMsg.id)),3000);
   };
 
-  const updateYoutubeURL = (url)=>{
+  const updateYoutubeURL = url=>{
     set(ref(database, `rooms/${ROOM_ID}/youtube`), {url});
   };
 
   const handleMicDown = async ()=>{
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
       localStreamRef.current = stream;
       const call = peerRef.current.call('broadcast', stream);
       callRef.current = call;
       setMicActive(true);
-    } catch(e){ alert('Mic access required'); }
+    }catch(e){ alert('Mic access required'); }
   };
 
   const handleMicUp = ()=>{
