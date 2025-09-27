@@ -45,6 +45,7 @@ export default function App() {
   const ignoreNext = useRef(false);
   const surpriseCount = useRef(0);
 
+  // Load Firebase data
   useEffect(()=>{
     const chatRefFirebase = ref(database, `rooms/${ROOM_ID}/chat`);
     onValue(chatRefFirebase, snapshot=>{
@@ -71,9 +72,16 @@ export default function App() {
     onValue(emojiRef, snapshot=>{
       const data = snapshot.val();
       if(data && data.emoji){
+        // Blast emoji everywhere
+        const emojiArray = [];
         for(let i=0;i<50;i++){
-          setTimeout(()=>setEmojiRain(prev=>[...prev,data.emoji]),i*50);
+          emojiArray.push({
+            e:data.emoji,
+            left: Math.random()*100,
+            rotate: Math.random()*360
+          });
         }
+        setEmojiRain(emojiArray);
         setTimeout(()=>setEmojiRain([]),3000);
       }
     });
@@ -109,6 +117,7 @@ export default function App() {
     });
   },[]);
 
+  // Clock
   useEffect(()=>{
     const timer = setInterval(()=>{
       const india = new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Kolkata'});
@@ -119,6 +128,7 @@ export default function App() {
     return ()=>clearInterval(timer);
   },[]);
 
+  // PeerJS setup
   useEffect(()=>{
     const peer = new Peer();
     peerRef.current = peer;
@@ -136,6 +146,7 @@ export default function App() {
     });
   },[]);
 
+  // YouTube API
   useEffect(()=>{
     const tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
@@ -236,7 +247,7 @@ export default function App() {
 
       <div className='main-content'>
         <div className='video-section'>
-          <div id='yt-player'></div>
+          <div id='yt-player' style={{width:'100%',height:'250px',background:'#000'}}></div>
           <div className='youtube-sync'>
             <input type="text" placeholder="Paste YouTube URL" value={youtubeURL} onChange={e=>setYoutubeURL(e.target.value)} />
             <button onClick={()=>updateYoutubeURL(youtubeURL)}>Load Video</button>
@@ -266,7 +277,7 @@ export default function App() {
         </div>
       </div>
 
-      {emojiRain.map((e,i)=><div key={i} className='emoji-rain'>{e}</div>)}
+      {emojiRain.map((e,i)=><div key={i} className='emoji-rain' style={{left:`${e.left}%`, transform:`rotate(${e.rotate}deg)`}}>{e.e}</div>)}
     </div>
   );
 }
